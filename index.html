@@ -26,22 +26,22 @@
         canvas { display: block; background: #000; }
         #ui {
             display: flex;
-            gap: 30px;
-            margin-top: 15px;
-            font-size: 16px;
+            gap: 25px;
+            margin-top: 12px;
+            font-size: 15px;
         }
         #ui span { color: #e94560; font-weight: bold; }
         #controls {
-            margin-top: 15px;
-            font-size: 13px;
+            margin-top: 10px;
+            font-size: 12px;
             color: #888;
             text-align: center;
             line-height: 1.8;
         }
         #controls kbd {
             background: #333;
-            padding: 2px 8px;
-            border-radius: 4px;
+            padding: 2px 6px;
+            border-radius: 3px;
             border: 1px solid #555;
             font-family: monospace;
             color: #ddd;
@@ -49,20 +49,31 @@
         #overlay {
             position: absolute;
             top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0,0,0,0.75);
+            background: rgba(0,0,0,0.8);
             display: flex;
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            font-size: 24px;
             z-index: 10;
         }
         #overlay.hidden { display: none; }
-        #overlay h2 { margin-bottom: 20px; color: #e94560; font-size: 36px; }
-        #overlay p { margin-bottom: 10px; font-size: 16px; color: #ccc; }
+        #overlay h2 { margin-bottom: 16px; color: #e94560; font-size: 36px; }
+        #overlay .info-box {
+            background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(233, 69, 96, 0.3);
+            border-radius: 8px;
+            padding: 14px 24px;
+            margin-bottom: 12px;
+            text-align: center;
+            line-height: 1.9;
+            font-size: 14px;
+            color: #ccc;
+        }
+        #overlay .info-box strong { color: #e94560; }
+        #overlay .info-box .goal { color: #2ecc71; font-size: 16px; margin-bottom: 6px; }
         #overlay button {
-            margin-top: 20px;
-            padding: 12px 40px;
+            margin-top: 16px;
+            padding: 12px 48px;
             font-size: 18px;
             background: #e94560;
             color: #fff;
@@ -80,8 +91,14 @@
         <canvas id="game" width="650" height="650"></canvas>
         <div id="overlay">
             <h2>坦克大战</h2>
-            <p>方向键 / WASD 移动，空格射击</p>
-            <p>保护你的基地，消灭所有敌人！</p>
+            <div class="info-box">
+                <div class="goal">目标：消灭所有敌人，保护基地！</div>
+                <div>消灭全部敌人即可 <strong>通关</strong></div>
+                <div>基地被摧毁或生命耗尽则 <strong>游戏结束</strong></div>
+                <div style="margin-top:8px; color:#888;">
+                    <kbd>方向键</kbd> / <kbd>WASD</kbd> 移动 &nbsp; <kbd>空格</kbd> 射击
+                </div>
+            </div>
             <button onclick="startGame()">开始游戏</button>
         </div>
     </div>
@@ -89,10 +106,10 @@
         <div>得分: <span id="score">0</span></div>
         <div>生命: <span id="lives">3</span></div>
         <div>关卡: <span id="level">1</span></div>
-        <div>剩余敌人: <span id="remaining">20</span></div>
+        <div>剩余敌人: <span id="remaining">15</span></div>
     </div>
     <div id="controls">
-        <kbd>↑</kbd><kbd>W</kbd> 上移 &nbsp; <kbd>↓</kbd><kbd>S</kbd> 下移 &nbsp; <kbd>←</kbd><kbd>A</kbd> 左移 &nbsp; <kbd>→</kbd><kbd>D</kbd> 右移 &nbsp; <kbd>Space</kbd> 射击
+        <kbd>WASD</kbd> / <kbd>方向键</kbd> 移动 <kbd>Space</kbd> 射击 &nbsp;|&nbsp; 共 5 关，消灭全部敌人通关
     </div>
 
     <script>
@@ -110,18 +127,16 @@
     let game = null;
     let animFrame = null;
 
-    // ============ 工具 ============
     function rectCollide(a, b) {
         return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
     }
-    function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
 
     // ============ 粒子 ============
     class Particle {
         constructor(x, y, color, size, life) {
             this.x = x; this.y = y;
-            this.vx = (Math.random() - 0.5) * 4;
-            this.vy = (Math.random() - 0.5) * 4;
+            this.vx = (Math.random() - 0.5) * 5;
+            this.vy = (Math.random() - 0.5) * 5;
             this.color = color;
             this.size = size;
             this.life = life;
@@ -131,70 +146,158 @@
             this.x += this.vx;
             this.y += this.vy;
             this.life--;
-            this.size *= 0.96;
+            this.size *= 0.95;
         }
         draw(ctx) {
             ctx.globalAlpha = this.life / this.maxLife;
             ctx.fillStyle = this.color;
-            ctx.fillRect(this.x, this.y, this.size, this.size);
+            ctx.beginPath();
+            ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+            ctx.fill();
             ctx.globalAlpha = 1;
         }
     }
 
     // ============ 地图 ============
     const LEVEL_MAPS = [
+        // 关卡1：经典开阔
         [
             "1111111111111111111111111",
             "1000000000000000000000001",
-            "1011101110111011101110111",
-            "1011101110111011101110111",
             "1000000000000000000000001",
-            "1110111011101110111011101",
-            "1110111011101110111011101",
             "1000000000000000000000001",
-            "1011101110111011101110111",
-            "1011101110111011101110111",
+            "1000001111000111100000001",
+            "1000001111000111100000001",
             "1000000000000000000000001",
-            "1111111111112111111111111",
             "1000000000000000000000001",
-            "1011101110111011101110111",
-            "1011101110111011101110111",
             "1000000000000000000000001",
-            "1110111011101110111011101",
-            "1110111011101110111011101",
             "1000000000000000000000001",
-            "1011101110111011101110111",
-            "1011101110111011101110111",
             "1000000000000000000000001",
-            "1000000000005550000000001",
-            "1000000000005550000000001",
+            "1000000000000000000000001",
+            "1111000000000000000001111",
+            "1111000000000000000001111",
+            "1000000000000000000000001",
+            "1000000000000000000000001",
+            "1000000000000000000000001",
+            "1000000000000000000000001",
+            "1000001111000111100000001",
+            "1000001111000111100000001",
+            "1000000000000000000000001",
+            "1000000000000000000000001",
+            "1000000000000000000000001",
+            "1000000000005500000000001",
             "1111111111111111111111111",
         ],
+        // 关卡2：钢墙障碍
         [
             "1111111111111111111111111",
             "1000000000000000000000001",
-            "1011102110111011101120111",
-            "1011102110111011101120111",
             "1000000000000000000000001",
-            "1110111011101110111011101",
-            "1110111011101110111011101",
             "1000000000000000000000001",
-            "1011101110111011101110111",
-            "1011101110111011101110111",
+            "1000002221000122200000001",
+            "1000002221000122200000001",
             "1000000000000000000000001",
-            "1111111111211111111111111",
             "1000000000000000000000001",
-            "1011101110111011101110111",
-            "1011101110111011101110111",
             "1000000000000000000000001",
-            "1110111011101110111011101",
-            "1110111011101110111011101",
             "1000000000000000000000001",
-            "1011101110111011101110111",
-            "1011101110111011101110111",
             "1000000000000000000000001",
-            "1000000000005550000000001",
-            "1000000000005550000000001",
+            "1000000000000000000000001",
+            "1111220000000000000221111",
+            "1111220000000000000221111",
+            "1000000000000000000000001",
+            "1000000000000000000000001",
+            "1000000000000000000000001",
+            "1000000000000000000000001",
+            "1000002221000122200000001",
+            "1000002221000122200000001",
+            "1000000000000000000000001",
+            "1000000000000000000000001",
+            "1000000000000000000000001",
+            "1000000000005500000000001",
+            "1111111111111111111111111",
+        ],
+        // 关卡3：水域阻隔
+        [
+            "1111111111111111111111111",
+            "1000000000000000000000001",
+            "1000000000000000000000001",
+            "1000000000000000000000001",
+            "1000001111000111100000001",
+            "1000001111000111100000001",
+            "1000000000000000000000001",
+            "1000000330000330000000001",
+            "1000000330000330000000001",
+            "1000000000000000000000001",
+            "1000000000000000000000001",
+            "1000000000000000000000001",
+            "1111000000000000000001111",
+            "1111000000000000000001111",
+            "1000000000000000000000001",
+            "1000000330000330000000001",
+            "1000000330000330000000001",
+            "1000000000000000000000001",
+            "1000001111000111100000001",
+            "1000001111000111100000001",
+            "1000000000000000000000001",
+            "1000000000000000000000001",
+            "1000000000000000000000001",
+            "1000000000005500000000001",
+            "1111111111111111111111111",
+        ],
+        // 关卡4：混合地形
+        [
+            "1111111111111111111111111",
+            "1000000000000000000000001",
+            "1000000000000000000000001",
+            "1000001111000111100000001",
+            "1000001111000111100000001",
+            "1000000000000000000000001",
+            "1000002221000122200000001",
+            "1000002221000122200000001",
+            "1000000330000330000000001",
+            "1000000330000330000000001",
+            "1000000000000000000000001",
+            "1000000000000000000000001",
+            "1111220000000000000221111",
+            "1111220000000000000221111",
+            "1000000000000000000000001",
+            "1000000330000330000000001",
+            "1000000330000330000000001",
+            "1000002221000122200000001",
+            "1000002221000122200000001",
+            "1000000000000000000000001",
+            "1000001111000111100000001",
+            "1000001111000111100000001",
+            "1000000000000000000000001",
+            "1000000000005500000000001",
+            "1111111111111111111111111",
+        ],
+        // 关卡5：终极挑战
+        [
+            "1111111111111111111111111",
+            "1000000000000000000000001",
+            "1000000000000000000000001",
+            "1000002221000122200000001",
+            "1000002221000122200000001",
+            "1000000000000000000000001",
+            "1000001111000111100000001",
+            "1000001111000111100000001",
+            "1000000330000330000000001",
+            "1000000330000330000000001",
+            "1000000000000000000000001",
+            "1000000000000000000000001",
+            "1111221111221111221111111",
+            "1111221111221111221111111",
+            "1000000000000000000000001",
+            "1000000330000330000000001",
+            "1000000330000330000000001",
+            "1000001111000111100000001",
+            "1000001111000111100000001",
+            "1000000000000000000000001",
+            "1000002221000122200000001",
+            "1000002221000122200000001",
+            "1000000000000000000000001",
+            "1000000000005500000000001",
             "1111111111111111111111111",
         ]
     ];
@@ -206,8 +309,7 @@
             for (let r = 0; r < ROWS; r++) {
                 const row = [];
                 for (let c = 0; c < COLS; c++) {
-                    const ch = src[r][c];
-                    row.push(parseInt(ch));
+                    row.push(parseInt(src[r][c]));
                 }
                 this.tiles.push(row);
             }
@@ -218,9 +320,6 @@
         }
         set(r, c, v) {
             if (r >= 0 && r < ROWS && c >= 0 && c < COLS) this.tiles[r][c] = v;
-        }
-        tileRect(r, c) {
-            return { x: c * TILE, y: r * TILE, w: TILE, h: TILE };
         }
         draw(ctx) {
             for (let r = 0; r < ROWS; r++) {
@@ -243,12 +342,14 @@
                         ctx.strokeRect(x + 4, y + 4, TILE - 8, TILE - 8);
                         ctx.lineWidth = 1;
                     } else if (t === TILES.WATER) {
-                        ctx.fillStyle = '#1e90ff';
+                        ctx.fillStyle = '#1e3a5f';
                         ctx.fillRect(x, y, TILE, TILE);
-                        ctx.fillStyle = '#87ceeb';
-                        ctx.fillRect(x + 5, y + 5, TILE - 10, 3);
+                        ctx.fillStyle = '#2a5a8f';
+                        const offset = (Date.now() / 500) % 1;
+                        ctx.fillRect(x + 2, y + 4 + offset * 4, TILE - 4, 3);
+                        ctx.fillRect(x + 4, y + 12 + offset * 4, TILE - 8, 2);
                     } else if (t === TILES.GRASS) {
-                        // drawn later (on top of tanks)
+                        // drawn later
                     } else if (t === TILES.BASE) {
                         ctx.fillStyle = '#ffd700';
                         ctx.fillRect(x + 2, y + 2, TILE - 4, TILE - 4);
@@ -256,7 +357,7 @@
                         ctx.lineWidth = 2;
                         ctx.strokeRect(x + 4, y + 4, TILE - 8, TILE - 8);
                         ctx.fillStyle = '#ff4500';
-                        ctx.font = '14px monospace';
+                        ctx.font = 'bold 13px monospace';
                         ctx.textAlign = 'center';
                         ctx.fillText('鹰', x + TILE / 2, y + TILE / 2 + 5);
                         ctx.lineWidth = 1;
@@ -269,11 +370,13 @@
                 for (let c = 0; c < COLS; c++) {
                     if (this.tiles[r][c] === TILES.GRASS) {
                         const x = c * TILE, y = r * TILE;
-                        ctx.fillStyle = 'rgba(34,139,34,0.6)';
+                        ctx.fillStyle = 'rgba(34,139,34,0.5)';
                         ctx.fillRect(x, y, TILE, TILE);
-                        ctx.fillStyle = 'rgba(50,180,50,0.4)';
-                        for (let i = 0; i < 4; i++) {
-                            ctx.fillRect(x + Math.random() * 20, y + Math.random() * 20, 4, 8);
+                        ctx.fillStyle = 'rgba(50,180,50,0.3)';
+                        for (let i = 0; i < 3; i++) {
+                            const px = x + 4 + (i * 7 + r * 3) % 16;
+                            const py = y + 3 + (i * 5 + c * 2) % 18;
+                            ctx.fillRect(px, py, 3, 8);
                         }
                     }
                 }
@@ -283,15 +386,9 @@
             const t = this.get(r, c);
             return t === TILES.BRICK || t === TILES.STEEL || t === TILES.BASE || t === TILES.WATER;
         }
-        isDestructible(r, c) {
-            const t = this.get(r, c);
-            return t === TILES.BRICK || t === TILES.BASE;
-        }
         hitTile(r, c) {
-            if (this.get(r, c) === TILES.BRICK) {
-                this.set(r, c, TILES.EMPTY);
-                return true;
-            } else if (this.get(r, c) === TILES.BASE) {
+            const t = this.get(r, c);
+            if (t === TILES.BRICK || t === TILES.BASE) {
                 this.set(r, c, TILES.EMPTY);
                 return true;
             }
@@ -305,7 +402,7 @@
             this.x = x; this.y = y;
             this.dir = dir;
             this.speed = speed;
-            this.owner = owner; // 'player' or 'enemy'
+            this.owner = owner;
             this.w = 4; this.h = 4;
             this.dead = false;
         }
@@ -316,13 +413,10 @@
             else if (this.dir === DIR.DOWN) this.y += this.speed;
             else if (this.dir === DIR.LEFT) this.x -= this.speed;
 
-            // 边界检查
             if (this.x < 0 || this.x > WIDTH || this.y < 0 || this.y > HEIGHT) {
-                this.dead = true;
-                return;
+                this.dead = true; return;
             }
 
-            // 地图碰撞
             const corners = [
                 { r: Math.floor(this.y / TILE), c: Math.floor(this.x / TILE) },
                 { r: Math.floor((this.y + this.h) / TILE), c: Math.floor(this.x / TILE) },
@@ -331,13 +425,8 @@
             ];
             for (const p of corners) {
                 if (map.isSolid(p.r, p.c)) {
-                    if (map.hitTile(p.r, p.c)) {
-                        this.dead = true;
-                        return;
-                    } else {
-                        this.dead = true;
-                        return;
-                    }
+                    map.hitTile(p.r, p.c);
+                    this.dead = true; return;
                 }
             }
         }
@@ -361,6 +450,7 @@
             this.cooldown = 0;
             this.iframes = 0;
             this.flashTimer = 0;
+            this.trackAnim = 0;
         }
         getRect() { return { x: this.x, y: this.y, w: this.w, h: this.h }; }
         canMove(map, dx, dy) {
@@ -379,19 +469,19 @@
         }
         move(map, dx, dy) {
             if (this.canMove(map, dx, dy)) {
-                this.x += dx;
-                this.y += dy;
+                this.x += dx; this.y += dy;
                 if (dx > 0) this.dir = DIR.RIGHT;
                 else if (dx < 0) this.dir = DIR.LEFT;
                 else if (dy > 0) this.dir = DIR.DOWN;
                 else if (dy < 0) this.dir = DIR.UP;
+                this.trackAnim += 0.3;
                 return true;
             }
             return false;
         }
         shoot() {
             if (this.cooldown > 0) return null;
-            this.cooldown = this.isPlayer ? 12 : 45;
+            this.cooldown = this.isPlayer ? 10 : 50;
             let bx, by;
             const cx = this.x + this.w / 2 - 2;
             const cy = this.y + this.h / 2 - 2;
@@ -415,30 +505,37 @@
             else if (this.dir === DIR.DOWN) ctx.rotate(Math.PI);
             else if (this.dir === DIR.LEFT) ctx.rotate(-Math.PI / 2);
 
+            const trackOffset = Math.sin(this.trackAnim) * 2;
+
             // 履带
-            ctx.fillStyle = '#333';
+            ctx.fillStyle = '#2a2a2a';
             ctx.fillRect(-this.w / 2, -this.h / 2, 6, this.h);
             ctx.fillRect(this.w / 2 - 6, -this.h / 2, 6, this.h);
-            // 履带条纹
-            ctx.fillStyle = '#222';
-            for (let i = -this.h / 2 + 3; i < this.h / 2; i += 6) {
+            // 履带条纹（动画）
+            ctx.fillStyle = '#1a1a1a';
+            for (let i = -this.h / 2 + 2 + trackOffset; i < this.h / 2; i += 6) {
                 ctx.fillRect(-this.w / 2, i, 6, 3);
                 ctx.fillRect(this.w / 2 - 6, i, 6, 3);
             }
 
             // 车身
             ctx.fillStyle = this.color;
-            ctx.fillRect(-8, -8, 16, 16);
+            ctx.fillRect(-9, -9, 18, 18);
+            ctx.strokeStyle = 'rgba(0,0,0,0.3)';
+            ctx.lineWidth = 1;
+            ctx.strokeRect(-9, -9, 18, 18);
 
             // 炮管
-            ctx.fillStyle = this.isPlayer ? '#ccc' : '#999';
-            ctx.fillRect(-2, -this.h / 2 - 2, 4, this.h / 2 + 4);
+            ctx.fillStyle = this.isPlayer ? '#bbb' : '#888';
+            ctx.fillRect(-2.5, -this.h / 2 - 3, 5, this.h / 2 + 5);
 
             // 炮塔
-            ctx.fillStyle = this.isPlayer ? '#ddd' : '#bbb';
+            ctx.fillStyle = this.isPlayer ? '#ddd' : '#aaa';
             ctx.beginPath();
-            ctx.arc(0, 0, 5, 0, Math.PI * 2);
+            ctx.arc(0, 0, 6, 0, Math.PI * 2);
             ctx.fill();
+            ctx.strokeStyle = 'rgba(0,0,0,0.3)';
+            ctx.stroke();
 
             ctx.restore();
         }
@@ -446,10 +543,11 @@
 
     // ============ 敌人AI ============
     class EnemyTank extends Tank {
-        constructor(x, y, type) {
-            const colors = ['#e74c3c', '#e67e22', '#c0392b'];
-            const speeds = [1, 1.5, 0.8];
-            super(x, y, DIR.DOWN, speeds[type % 3], colors[type % 3], false);
+        constructor(x, y, type, level) {
+            const colors = ['#e74c3c', '#e67e22', '#c0392b', '#d35400', '#922b21'];
+            const baseSpeeds = [1, 1.3, 0.8];
+            const speed = baseSpeeds[type % 3] + (level - 1) * 0.1;
+            super(x, y, DIR.DOWN, Math.min(speed, 2.5), colors[type % 5], false);
             this.type = type;
             this.moveTimer = 0;
             this.moveDuration = 30 + Math.random() * 60;
@@ -462,8 +560,7 @@
             if (this.moveTimer >= this.moveDuration) {
                 this.moveTimer = 0;
                 this.moveDuration = 30 + Math.random() * 60;
-                // 有时朝玩家方向走
-                if (player && !player.dead && Math.random() < 0.4) {
+                if (player && !player.dead && Math.random() < 0.45) {
                     const dx = player.x - this.x;
                     const dy = player.y - this.y;
                     if (Math.abs(dx) > Math.abs(dy)) {
@@ -482,13 +579,17 @@
             else if (this.dir === DIR.DOWN) dy = this.speed;
             else if (this.dir === DIR.LEFT) dx = -this.speed;
 
+            const oldX = this.x, oldY = this.y;
             if (!this.move(map, dx, dy)) {
-                // 撞墙换方向
+                this.dir = Math.floor(Math.random() * 4);
+                this.moveTimer = 0;
+            } else if (player && !player.dead && rectCollide(this.getRect(), player.getRect())) {
+                this.x = oldX; this.y = oldY;
                 this.dir = Math.floor(Math.random() * 4);
                 this.moveTimer = 0;
             }
 
-            if (this.shootTimer > 30 + Math.random() * 40) {
+            if (this.shootTimer > 25 + Math.random() * 35) {
                 this.shootTimer = 0;
                 return this.shoot();
             }
@@ -506,37 +607,40 @@
             this.particles = [];
             this.keys = {};
             this.enemySpawnTimer = 0;
-            this.totalEnemies = 20;
-            this.spawnedEnemies = 0;
             this.gameOver = false;
             this.victory = false;
-            this.enemyKills = 0;
+        }
+        getEnemiesForLevel() {
+            return [15, 18, 20, 22, 25][(this.level - 1) % 5];
         }
         startLevel() {
             this.map = new Map(this.level);
             this.bullets = [];
             this.enemies = [];
-            this.player = new Tank(WIDTH / 2 - TILE * 2, HEIGHT - TILE * 3, DIR.UP, 2, '#2ecc71', true);
-            this.enemySpawnTimer = 0;
+            this.totalEnemies = this.getEnemiesForLevel();
             this.spawnedEnemies = 0;
-            this.totalEnemies = 15 + this.level * 5;
             this.enemyKills = 0;
+            this.enemySpawnTimer = 0;
             this.gameOver = false;
             this.victory = false;
+            // 玩家出生点：基地上方安全区域
+            const px = WIDTH / 2 - TILE * 2;
+            const py = HEIGHT - TILE * 4;
+            this.player = new Tank(px, py, DIR.UP, 2.2, '#2ecc71', true);
         }
         spawnEnemy() {
             if (this.spawnedEnemies >= this.totalEnemies) return;
             const spawnPoints = [
-                { x: TILE, y: TILE },
+                { x: TILE * 2, y: TILE },
                 { x: WIDTH / 2 - TILE / 2, y: TILE },
-                { x: WIDTH - TILE * 2, y: TILE }
+                { x: WIDTH - TILE * 3, y: TILE }
             ];
             const pt = spawnPoints[Math.floor(Math.random() * spawnPoints.length)];
-            const enemy = new EnemyTank(pt.x, pt.y, Math.floor(Math.random() * 3));
-            // 检查是否与现有敌人重叠
+            const enemy = new EnemyTank(pt.x, pt.y, Math.floor(Math.random() * 3), this.level);
             for (const e of this.enemies) {
-                if (rectCollide(enemy.getRect(), e.getRect())) return;
+                if (!e.dead && rectCollide(enemy.getRect(), e.getRect())) return;
             }
+            if (this.player && !this.player.dead && rectCollide(enemy.getRect(), this.player.getRect())) return;
             this.enemies.push(enemy);
             this.spawnedEnemies++;
         }
@@ -556,7 +660,18 @@
                 else if (this.keys['ArrowDown'] || this.keys['s'] || this.keys['S']) dy = this.player.speed;
                 else if (this.keys['ArrowLeft'] || this.keys['a'] || this.keys['A']) dx = -this.player.speed;
                 else if (this.keys['ArrowRight'] || this.keys['d'] || this.keys['D']) dx = this.player.speed;
-                if (dx !== 0 || dy !== 0) this.player.move(this.map, dx, dy);
+
+                if (dx !== 0 || dy !== 0) {
+                    const oldX = this.player.x, oldY = this.player.y;
+                    if (this.player.move(this.map, dx, dy)) {
+                        for (const e of this.enemies) {
+                            if (!e.dead && rectCollide(this.player.getRect(), e.getRect())) {
+                                this.player.x = oldX; this.player.y = oldY;
+                                break;
+                            }
+                        }
+                    }
+                }
                 if (this.keys[' ']) {
                     const b = this.player.shoot();
                     if (b) this.bullets.push(b);
@@ -564,9 +679,9 @@
             }
 
             // 生成敌人
-            if (this.enemies.length < 4 && this.spawnedEnemies < this.totalEnemies) {
+            if (this.enemies.length < Math.min(4 + this.level, 6) && this.spawnedEnemies < this.totalEnemies) {
                 this.enemySpawnTimer++;
-                if (this.enemySpawnTimer > 90) {
+                if (this.enemySpawnTimer > Math.max(60, 100 - this.level * 8)) {
                     this.enemySpawnTimer = 0;
                     this.spawnEnemy();
                 }
@@ -586,13 +701,11 @@
             // 子弹vs坦克
             for (const b of this.bullets) {
                 if (b.dead) continue;
-                // 玩家子弹打敌人
                 if (b.owner === 'player') {
                     for (let i = this.enemies.length - 1; i >= 0; i--) {
                         const e = this.enemies[i];
                         if (rectCollide(b.getRect(), e.getRect())) {
-                            b.dead = true;
-                            e.dead = true;
+                            b.dead = true; e.dead = true;
                             this.enemies.splice(i, 1);
                             this.score += 100;
                             this.enemyKills++;
@@ -601,17 +714,17 @@
                         }
                     }
                 } else {
-                    // 敌人子弹打玩家
                     if (this.player && !this.player.dead && this.player.iframes <= 0) {
                         if (rectCollide(b.getRect(), this.player.getRect())) {
-                            b.dead = true;
-                            this.player.dead = true;
+                            b.dead = true; this.player.dead = true;
                             this.lives--;
                             this.spawnParticles(this.player.x + this.player.w / 2, this.player.y + this.player.h / 2, '#2ecc71', 20, 6, 40);
                             if (this.lives > 0) {
                                 setTimeout(() => {
                                     if (!this.gameOver) {
-                                        this.player = new Tank(WIDTH / 2 - TILE * 2, HEIGHT - TILE * 3, DIR.UP, 2, '#2ecc71', true);
+                                        const px = WIDTH / 2 - TILE * 2;
+                                        const py = HEIGHT - TILE * 4;
+                                        this.player = new Tank(px, py, DIR.UP, 2.2, '#2ecc71', true);
                                     }
                                 }, 1000);
                             }
@@ -620,16 +733,14 @@
                 }
             }
 
-            // 检查基地是否被摧毁
+            // 检查基地
             let baseAlive = false;
             for (let r = 0; r < ROWS; r++) {
                 for (let c = 0; c < COLS; c++) {
                     if (this.map.get(r, c) === TILES.BASE) baseAlive = true;
                 }
             }
-            if (!baseAlive) {
-                this.gameOver = true;
-            }
+            if (!baseAlive) this.gameOver = true;
 
             // 检查胜利
             if (this.enemyKills >= this.totalEnemies && this.enemies.length === 0) {
@@ -650,21 +761,12 @@
             ctx.fillRect(0, 0, WIDTH, HEIGHT);
 
             this.map.draw(ctx);
-
-            // 子弹
             for (const b of this.bullets) b.draw(ctx);
-
-            // 坦克
             if (this.player && !this.player.dead) this.player.draw(ctx);
             for (const e of this.enemies) e.draw(ctx);
-
-            // 草地覆盖
             this.map.drawGrass(ctx);
-
-            // 粒子
             for (const p of this.particles) p.draw(ctx);
 
-            // UI更新
             document.getElementById('score').textContent = this.score;
             document.getElementById('lives').textContent = this.lives;
             document.getElementById('level').textContent = this.level;
@@ -675,11 +777,14 @@
     // ============ 主循环 ============
     function startGame() {
         document.getElementById('overlay').classList.add('hidden');
-        if (game) {
-            if (game.gameOver || game.victory) {
+        if (game && (game.gameOver || game.victory)) {
+            if (game.victory) {
+                game.level++;
+                game.startLevel();
+            } else {
                 game = new Game();
             }
-        } else {
+        } else if (!game) {
             game = new Game();
         }
         if (!animFrame) loop();
@@ -691,27 +796,44 @@
         game.draw();
 
         if (game.gameOver) {
-            ctx.fillStyle = 'rgba(0,0,0,0.7)';
+            ctx.fillStyle = 'rgba(0,0,0,0.75)';
             ctx.fillRect(0, 0, WIDTH, HEIGHT);
             ctx.fillStyle = '#e94560';
             ctx.font = 'bold 48px Microsoft YaHei';
             ctx.textAlign = 'center';
-            ctx.fillText('游戏结束', WIDTH / 2, HEIGHT / 2 - 20);
+            ctx.fillText('游戏结束', WIDTH / 2, HEIGHT / 2 - 30);
             ctx.fillStyle = '#fff';
             ctx.font = '20px Microsoft YaHei';
-            ctx.fillText('得分: ' + game.score, WIDTH / 2, HEIGHT / 2 + 30);
-            ctx.fillText('按空格键重新开始', WIDTH / 2, HEIGHT / 2 + 70);
+            ctx.fillText('得分: ' + game.score, WIDTH / 2, HEIGHT / 2 + 20);
+            ctx.fillStyle = '#888';
+            ctx.font = '16px Microsoft YaHei';
+            ctx.fillText('按空格键重新开始', WIDTH / 2, HEIGHT / 2 + 60);
         } else if (game.victory) {
-            ctx.fillStyle = 'rgba(0,0,0,0.7)';
+            ctx.fillStyle = 'rgba(0,0,0,0.75)';
             ctx.fillRect(0, 0, WIDTH, HEIGHT);
-            ctx.fillStyle = '#2ecc71';
-            ctx.font = 'bold 48px Microsoft YaHei';
-            ctx.textAlign = 'center';
-            ctx.fillText('胜利！', WIDTH / 2, HEIGHT / 2 - 20);
-            ctx.fillStyle = '#fff';
-            ctx.font = '20px Microsoft YaHei';
-            ctx.fillText('得分: ' + game.score, WIDTH / 2, HEIGHT / 2 + 30);
-            ctx.fillText('按空格键下一关', WIDTH / 2, HEIGHT / 2 + 70);
+            if (game.level >= 5) {
+                ctx.fillStyle = '#ffd700';
+                ctx.font = 'bold 44px Microsoft YaHei';
+                ctx.textAlign = 'center';
+                ctx.fillText('恭喜通关全部关卡！', WIDTH / 2, HEIGHT / 2 - 30);
+                ctx.fillStyle = '#fff';
+                ctx.font = '20px Microsoft YaHei';
+                ctx.fillText('最终得分: ' + game.score, WIDTH / 2, HEIGHT / 2 + 20);
+                ctx.fillStyle = '#888';
+                ctx.font = '16px Microsoft YaHei';
+                ctx.fillText('按空格键从头开始', WIDTH / 2, HEIGHT / 2 + 60);
+            } else {
+                ctx.fillStyle = '#2ecc71';
+                ctx.font = 'bold 48px Microsoft YaHei';
+                ctx.textAlign = 'center';
+                ctx.fillText('胜利！', WIDTH / 2, HEIGHT / 2 - 30);
+                ctx.fillStyle = '#fff';
+                ctx.font = '20px Microsoft YaHei';
+                ctx.fillText('得分: ' + game.score, WIDTH / 2, HEIGHT / 2 + 20);
+                ctx.fillStyle = '#888';
+                ctx.font = '16px Microsoft YaHei';
+                ctx.fillText('按空格键进入第 ' + (game.level + 1) + ' 关', WIDTH / 2, HEIGHT / 2 + 60);
+            }
         }
 
         animFrame = requestAnimationFrame(loop);
@@ -719,26 +841,29 @@
 
     // ============ 事件 ============
     window.addEventListener('keydown', (e) => {
-        game && (game.keys[e.key] = true);
-        if (e.key === ' ' && game && (game.gameOver || game.victory)) {
-            e.preventDefault();
-            if (game.victory) {
-                game.level++;
-                game.startLevel();
-                game.gameOver = false;
-                game.victory = false;
-            } else if (game.gameOver) {
+        if (game) game.keys[e.key] = true;
+        if (e.key === ' ') {
+            if (game && game.gameOver) {
+                e.preventDefault();
                 game = new Game();
+            } else if (game && game.victory) {
+                e.preventDefault();
+                if (game.level >= 5) {
+                    game = new Game();
+                } else {
+                    game.level++;
+                    game.startLevel();
+                }
             }
         }
     });
     window.addEventListener('keyup', (e) => {
-        game && (game.keys[e.key] = false);
+        if (game) game.keys[e.key] = false;
     });
 
     // 首次展示
     const demo = new Game();
-    demo.gameOver = true; // 冻结
+    demo.gameOver = true;
     demo.draw();
     </script>
 </body>
