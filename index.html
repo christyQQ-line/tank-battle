@@ -516,7 +516,7 @@
             this.map = new Map(this.level);
             this.bullets = [];
             this.enemies = [];
-            this.player = new Tank(WIDTH / 2 - TILE, HEIGHT - TILE * 2, DIR.UP, 2, '#2ecc71', true);
+            this.player = new Tank(WIDTH / 2 - TILE * 2, HEIGHT - TILE * 3, DIR.UP, 2, '#2ecc71', true);
             this.enemySpawnTimer = 0;
             this.spawnedEnemies = 0;
             this.totalEnemies = 15 + this.level * 5;
@@ -611,7 +611,7 @@
                             if (this.lives > 0) {
                                 setTimeout(() => {
                                     if (!this.gameOver) {
-                                        this.player = new Tank(WIDTH / 2 - TILE, HEIGHT - TILE * 2, DIR.UP, 2, '#2ecc71', true);
+                                        this.player = new Tank(WIDTH / 2 - TILE * 2, HEIGHT - TILE * 3, DIR.UP, 2, '#2ecc71', true);
                                     }
                                 }, 1000);
                             }
